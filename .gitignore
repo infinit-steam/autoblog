@@ -2,5 +2,7 @@ config.yaml
 logs/
 profiles/
 state.json
+content/**/*.mp4
+content/**/*.mov
 __pycache__/
 *.pyc

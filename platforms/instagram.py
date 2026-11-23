@@ -20,6 +20,7 @@ SUPPORTS_DRAFT = False
 CAPTION_MAX = 2200
 HASHTAG_MAX = 30
 MAX_IMAGES = 10
+MIN_BYTES = 1024
 
 # 한국어/영어 UI 모두 대응하는 문구 패턴
 TXT = {
@@ -29,6 +30,7 @@ TXT = {
     "select_pc": re.compile(r"(컴퓨터에서 선택|Select from computer|Select from device)", re.I),
     "next": re.compile(r"^(다음|Next)$", re.I),
     "ok": re.compile(r"^(확인|OK)$", re.I),
+    "upload_fail": re.compile(r"(파일을 업로드하지 못했습니다|Couldn.t upload|couldn.t be uploaded)", re.I),
     "share": re.compile(r"^(공유하기|공유|Share)$", re.I),
     "shared": re.compile(r"(게시물이 공유되었습니다|릴스가 공유되었습니다|Your post has been shared|Your reel has been shared|공유되었습니다)", re.I),
 }
@@ -64,6 +66,9 @@ def _click(page, name_re, role="button", timeout=15000):
 
 
 def _validate(files, caption: str):
+    for f in files:
+        if f.stat().st_size < MIN_BYTES:  # 인스타가 업로드 단계에서 거부함 ("파일 크기가 1KB 이상이어야 합니다")
+            raise ValueError(f"파일이 너무 작습니다 (1KB 미만): {f.name}")
     imgs = [f for f in files if f.suffix.lower() in IMAGE_EXT]
     vids = [f for f in files if f.suffix.lower() in VIDEO_EXT]
     if len(imgs) + len(vids) != len(files):
@@ -107,6 +112,10 @@ def _step_to_caption(page, is_reel: bool):
     for _ in range(5):
         if page.locator(SEL["caption"]).first.is_visible():
             return
+        err = page.get_by_text(TXT["upload_fail"])
+        if err.count() and err.first.is_visible():
+            detail = page.locator("[role=dialog]").last.inner_text()[:200].replace("\n", " ")
+            raise RuntimeError(f"인스타가 파일 업로드를 거부했습니다: {detail}")
         ok = page.get_by_role("button", name=TXT["ok"])
         if is_reel and ok.count() and ok.first.is_visible():
             ok.first.click()  # "동영상 게시물은 이제 릴스로 공유됩니다"

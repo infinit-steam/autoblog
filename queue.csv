@@ -1,3 +1,4 @@
 account,platform,title,body_file,media,category,status
-acc1,naver,테스트 제목 1,content/post1.txt,,,dry
-acc1,instagram,릴스 테스트,content/ig_caption1.txt,images/test.mp4,,dry
+acc1,naver,테스트 제목 1,content/test/naver/post.txt,,,dry
+acc1,instagram,테스트 제목 1,content/test/instagram/caption.txt,content/test/media/01.png|content/test/media/02.png|content/test/media/sample.png,,dry
+acc1,instagram,test,content/test/instagram/caption.txt,content/test/media/test.mp4,,dry

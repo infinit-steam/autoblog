@@ -1,5 +1,5 @@
 테스트 본문입니다.
-[[image:images/sample.png]]
+[[image:../media/sample.png]]
 이미지 아래 문단입니다.
 
 마지막 줄입니다.
