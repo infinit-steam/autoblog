@@ -1,11 +1,23 @@
 import argparse, csv, random, time, yaml
 from pathlib import Path
 from browser import open_browser
-import naver_blog
+import common
+import platforms
 from pacing import Pacing
 import human
 
 ROOT = Path(__file__).parent
+QUEUE_FIELDS = ["account", "platform", "title", "body_file", "media", "category", "status"]
+
+
+def resolve_mode(cfg: dict, platform: str) -> str:
+    """post_mode: 문자열(전체 공통) 또는 {플랫폼: 모드}. 기본은 안전하게 draft."""
+    pm = cfg.get("post_mode") or "draft"
+    mode = (pm.get(platform) if isinstance(pm, dict) else pm) or "draft"
+    mode = str(mode).lower()
+    if mode not in ("draft", "publish"):
+        raise SystemExit(f"post_mode({platform}) 는 draft 또는 publish 여야 합니다: {mode}")
+    return mode
 
 
 def main():
@@ -13,38 +25,49 @@ def main():
     ap.add_argument("--dry-run", action="store_true", help="발행 직전까지만")
     ap.add_argument("--force", action="store_true", help="활동시간·일일한도·휴무일·시작지연 무시")
     ap.add_argument("--login-only", metavar="ACCOUNT", help="프로필만 열어 수동 로그인")
+    ap.add_argument("--platform", default="naver", help="--login-only 와 함께 쓸 플랫폼 (naver|instagram)")
+    ap.add_argument("--only", metavar="PLATFORM", help="해당 플랫폼의 글만 처리")
     args = ap.parse_args()
 
     cfg = yaml.safe_load((ROOT / "config.yaml").read_text(encoding="utf-8"))
-    mode = (cfg.get("post_mode") or "draft").lower()  # draft(임시저장, 기본) | publish
-    if mode not in ("draft", "publish"):
-        raise SystemExit(f"post_mode 는 draft 또는 publish 여야 합니다: {mode}")
     accts = {a["name"]: a for a in cfg["accounts"]}
 
     if args.login_only:
         a = accts[args.login_only]
+        plat = platforms.get(args.platform)
         with open_browser(cfg, a) as page:
-            page.goto("https://nid.naver.com/nidlogin.login")
+            page.goto(plat.LOGIN_URL)
             input("브라우저에서 직접 로그인 후 Enter... ")
         return
 
     pace = Pacing(cfg.get("pacing"), ROOT / "state.json")
-    naver_blog.PACE.update(pace.typing())
+    common.PACE.update(pace.typing())
     # --dry-run / --force 는 시간대·한도·휴무일·지연을 무시 (테스트용). 입력 속도는 항상 적용.
     free = args.dry_run or args.force
     if not free and not pace.in_active_hours():
         raise SystemExit(f"활동 시간대 밖입니다 (active_hours={pace.c['active_hours']}). 무시하려면 --force")
 
     qpath = ROOT / "queue.csv"
-    rows = list(csv.DictReader(qpath.open(encoding="utf-8")))
+    reader = csv.DictReader(qpath.open(encoding="utf-8-sig"))
+    rows = list(reader)
+    fields = list(reader.fieldnames or QUEUE_FIELDS)
+    for k in QUEUE_FIELDS:  # 구버전 queue.csv 호환: 없는 열은 추가
+        if k not in fields:
+            fields.insert(min(len(fields), QUEUE_FIELDS.index(k)), k)
     jittered = free
     for row in rows:
-        if row["status"] != "pending":
+        if row.get("status") != "pending":
             continue
+        row.setdefault("platform", "")
+        row["platform"] = (row["platform"] or "naver").lower()
+        if args.only and row["platform"] != args.only.lower():
+            continue
+        plat = platforms.get(row["platform"])
+        key = f"{row['account']}:{plat.NAME}"  # 한도·기록은 계정×플랫폼 단위
         if not free:
-            ok, why = pace.allow(row["account"])
+            ok, why = pace.allow(key)
             if not ok:
-                print(f"[건너뜀] {row['account']} {row['title']}: {why}")
+                print(f"[건너뜀] {key} {row['title']}: {why}")
                 continue
             if not jittered:
                 wait = pace.jitter_seconds()
@@ -52,31 +75,35 @@ def main():
                 time.sleep(wait)
                 jittered = True
         a = accts[row["account"]]
-        body = (ROOT / row["body_file"]).read_text(encoding="utf-8")
+        mode = resolve_mode(cfg, plat.NAME)
+        body_path = ROOT / row["body_file"]
+        body = body_path.read_text(encoding="utf-8-sig")
+        hcfg = {"pages": plat.BROWSE_PAGES, **(cfg.get("human") or {})}
+        if (cfg.get("human") or {}).get("pages") and plat.NAME != "naver":
+            hcfg["pages"] = plat.BROWSE_PAGES  # config 의 pages 는 네이버용. 다른 플랫폼은 모듈 기본값
         try:
             with open_browser(cfg, a) as page:
-                if not naver_blog.is_logged_in(page):
-                    raise RuntimeError("로그아웃 상태 - --login-only 로 먼저 로그인")
-                human.browse(page, cfg.get("human"))  # 게시 전 스크롤/둘러보기
+                if not plat.is_logged_in(page):
+                    raise RuntimeError(f"{plat.NAME} 로그아웃 상태 - --login-only {a['name']} --platform {plat.NAME} 로 먼저 로그인")
+                human.browse(page, hcfg)  # 게시 전 스크롤/둘러보기
                 try:
-                    naver_blog.write_post(page, a["blog_id"], row["title"], body, args.dry_run,
-                                          base_dir=(ROOT / row["body_file"]).parent, mode=mode)
+                    plat.post(page, a, row, body, body_path.parent, mode, args.dry_run)
                 except Exception:
-                    page.screenshot(path=str(ROOT / "logs" / f"{row['account']}_{int(time.time())}.png"))
+                    page.screenshot(path=str(ROOT / "logs" / f"{row['account']}_{plat.NAME}_{int(time.time())}.png"))
                     raise
                 if not args.dry_run:
-                    human.browse(page, cfg.get("human"), post=True)  # 게시 후(설정 시)
+                    human.browse(page, hcfg, post=True)  # 게시 후(설정 시)
             row["status"] = "dry" if args.dry_run else ("draft" if mode == "draft" else "done")
             if not args.dry_run:
-                pace.record(row["account"])
+                pace.record(key)
         except Exception as e:
-            print(f"[실패] {row['account']} {row['title']}: {e}")
+            print(f"[실패] {key} {row['title']}: {e}")
             row["status"] = "failed"
         lo, hi = cfg["delay"]["between_posts"]
         time.sleep(random.uniform(lo, hi))
 
     with qpath.open("w", encoding="utf-8", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=rows[0].keys())
+        w = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore", restval="")
         w.writeheader(); w.writerows(rows)
 
 

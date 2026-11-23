@@ -5,7 +5,16 @@ import re
 import time
 from pathlib import Path
 
-ROOT = Path(__file__).parent
+from common import ROOT, PACE, human_pause
+
+NAME = "naver"
+LOGIN_URL = "https://nid.naver.com/nidlogin.login"
+BROWSE_PAGES = [
+    "https://www.naver.com",
+    "https://section.blog.naver.com/BlogHome.naver",
+    "https://news.naver.com",
+]
+SUPPORTS_DRAFT = True
 
 SEL = {
     "frame": "iframe#mainFrame",
@@ -17,14 +26,6 @@ SEL = {
     "image_comp": ".se-component.se-image",
     "help_close": ".se-help-panel-close-button",  # 도움말 패널
 }
-
-
-# 입력 속도/대기 배율. main.py 가 config 의 pacing 값으로 덮어쓴다.
-PACE = {"type_delay": (40, 110), "body_delay": (30, 90), "pause_scale": 1.0}
-
-
-def human_pause(a=0.4, b=1.2):
-    time.sleep(random.uniform(a, b) * PACE["pause_scale"])
 
 
 def is_logged_in(page) -> bool:
@@ -139,3 +140,10 @@ def write_post(page, blog_id: str, title: str, body: str, dry_run: bool = False,
     human_pause(1, 2)
     f.get_by_role("button", name="발행", exact=True).last.click()
     page.wait_for_url("**/PostView**", timeout=30000)
+
+
+def post(page, account: dict, row: dict, body: str, base_dir, mode: str, dry_run: bool):
+    """main.py 가 호출하는 공통 진입점."""
+    if not account.get("blog_id"):
+        raise ValueError(f"계정 {account['name']} 에 blog_id 가 없습니다")
+    write_post(page, account["blog_id"], row["title"], body, dry_run, base_dir=base_dir, mode=mode)
