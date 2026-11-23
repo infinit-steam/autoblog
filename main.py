@@ -1,6 +1,6 @@
 import argparse, csv, random, time, yaml
 from pathlib import Path
-from dolphin import Dolphin, open_profile
+from browser import open_browser
 import naver_blog
 
 ROOT = Path(__file__).parent
@@ -13,12 +13,14 @@ def main():
     args = ap.parse_args()
 
     cfg = yaml.safe_load((ROOT / "config.yaml").read_text(encoding="utf-8"))
+    mode = (cfg.get("post_mode") or "draft").lower()  # draft(임시저장, 기본) | publish
+    if mode not in ("draft", "publish"):
+        raise SystemExit(f"post_mode 는 draft 또는 publish 여야 합니다: {mode}")
     accts = {a["name"]: a for a in cfg["accounts"]}
-    dol = Dolphin(cfg["dolphin"]["local_api"], cfg["dolphin"]["token"])
 
     if args.login_only:
         a = accts[args.login_only]
-        with open_profile(dol, a["profile_id"]) as page:
+        with open_browser(cfg, a) as page:
             page.goto("https://nid.naver.com/nidlogin.login")
             input("브라우저에서 직접 로그인 후 Enter... ")
         return
@@ -31,15 +33,16 @@ def main():
         a = accts[row["account"]]
         body = (ROOT / row["body_file"]).read_text(encoding="utf-8")
         try:
-            with open_profile(dol, a["profile_id"]) as page:
+            with open_browser(cfg, a) as page:
                 if not naver_blog.is_logged_in(page):
                     raise RuntimeError("로그아웃 상태 - --login-only 로 먼저 로그인")
                 try:
-                    naver_blog.write_post(page, a["blog_id"], row["title"], body, args.dry_run)
+                    naver_blog.write_post(page, a["blog_id"], row["title"], body, args.dry_run,
+                                          base_dir=(ROOT / row["body_file"]).parent, mode=mode)
                 except Exception:
                     page.screenshot(path=str(ROOT / "logs" / f"{row['account']}_{int(time.time())}.png"))
                     raise
-            row["status"] = "dry" if args.dry_run else "done"
+            row["status"] = "dry" if args.dry_run else ("draft" if mode == "draft" else "done")
         except Exception as e:
             print(f"[실패] {row['account']} {row['title']}: {e}")
             row["status"] = "failed"

@@ -1,15 +1,23 @@
 # 복사해서 config.yaml 로 사용 (config.yaml 은 공유 금지)
-dolphin:
+post_mode: draft     # draft (임시저장 후 직접 확인·발행, 기본) | publish (즉시 발행)
+
+browser: chrome     # chrome (무료, 기본) | dolphin (유료 플랜 automation 필요)
+
+chrome:              # chrome 방식 옵션 (선택). 프로필은 profiles/<계정이름>/ 에 저장
+  channel: chrome    # 설치된 Chrome 사용. 내장 Chromium 은 "" 로
+  # proxy: "http://host:port"
+
+dolphin:             # browser: dolphin 일 때만 사용
   local_api: "http://localhost:3001"
   token: "여기에_Dolphin_API_토큰"
 
 accounts:
   - name: acc1
-    profile_id: "도핀_프로필ID_1"   # Dolphin 프로필 ID (프록시는 프로필에 설정)
     blog_id: "네이버블로그ID_1"
+    profile_id: "도핀_프로필ID_1"   # dolphin 방식에서만 필요 (프록시는 프로필에 설정)
   - name: acc2
-    profile_id: "도핀_프로필ID_2"
     blog_id: "네이버블로그ID_2"
+    profile_id: "도핀_프로필ID_2"
 
 delay:            # 계정 간 / 글 간 랜덤 대기(초)
   between_posts: [60, 180]
