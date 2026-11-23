@@ -6,3 +6,8 @@ content/**/*.mp4
 content/**/*.mov
 __pycache__/
 *.pyc
+
+# 실제 콘텐츠는 PC마다 따로 보관 (git 에 올리지 않음). README 와 test 예시만 추적
+content/*
+!content/README.md
+!content/test/
