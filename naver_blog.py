@@ -19,8 +19,12 @@ SEL = {
 }
 
 
+# 입력 속도/대기 배율. main.py 가 config 의 pacing 값으로 덮어쓴다.
+PACE = {"type_delay": (40, 110), "body_delay": (30, 90), "pause_scale": 1.0}
+
+
 def human_pause(a=0.4, b=1.2):
-    time.sleep(random.uniform(a, b))
+    time.sleep(random.uniform(a, b) * PACE["pause_scale"])
 
 
 def is_logged_in(page) -> bool:
@@ -95,7 +99,7 @@ def write_post(page, blog_id: str, title: str, body: str, dry_run: bool = False,
 
     # 제목
     f.locator(SEL["title"]).first.click()
-    page.keyboard.type(title, delay=random.randint(40, 110))
+    page.keyboard.type(title, delay=random.randint(*PACE["type_delay"]))
     human_pause()
 
     # 본문 (줄 단위 입력). `[[image:경로]]` 한 줄은 그 위치에 사진 업로드.
@@ -113,7 +117,7 @@ def write_post(page, blog_id: str, title: str, body: str, dry_run: bool = False,
         if not after_image:
             page.keyboard.press("Enter")
         if line:
-            page.keyboard.type(line, delay=random.randint(30, 90))
+            page.keyboard.type(line, delay=random.randint(*PACE["body_delay"]))
         after_image = False
     human_pause(1, 2)
 

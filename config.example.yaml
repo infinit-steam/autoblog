@@ -1,7 +1,24 @@
 # 복사해서 config.yaml 로 사용 (config.yaml 은 공유 금지)
 post_mode: draft     # draft (임시저장 후 직접 확인·발행, 기본) | publish (즉시 발행)
 
-browser: chrome     # chrome (무료, 기본) | dolphin (유료 플랜 automation 필요)
+pacing:                       # 자동화 패턴 조절 (처음엔 보수적으로)
+  daily_limit: 1              # 계정당 하루 최대 게시 수
+  ramp_up_every_days: 7       # N일마다 한도 +1 (0 이면 증량 없음)
+  ramp_up_max: 3              # 증량 상한
+  active_hours: [9, 22]       # 이 시간대(시)에만 실행
+  start_jitter_min: [0, 30]   # 첫 게시 전 랜덤 대기(분)
+  skip_day_prob: 0.15         # 계정별 확률로 그날은 쉼
+  type_delay_ms: [40, 110]    # 제목 글자당 입력 간격
+  body_delay_ms: [30, 90]     # 본문 글자당 입력 간격
+  pause_scale: 1.0            # 동작 사이 대기 배율
+
+human:                        # 게시 전 사람 같은 브라우징 (클릭/입력 없이 스크롤·이동만)
+  enabled: true
+  pages_to_visit: [1, 3]
+  dwell_sec: [8, 25]
+  after_post_dwell_sec: [0, 0]
+
+browser: chrome   # chrome (무료, 기본) | dolphin (유료 플랜 automation 필요)
 
 chrome:              # chrome 방식 옵션 (선택). 프로필은 profiles/<계정이름>/ 에 저장
   channel: chrome    # 설치된 Chrome 사용. 내장 Chromium 은 "" 로
