@@ -1,0 +1,15 @@
+# 복사해서 config.yaml 로 사용 (config.yaml 은 공유 금지)
+dolphin:
+  local_api: "http://localhost:3001"
+  token: "여기에_Dolphin_API_토큰"
+
+accounts:
+  - name: acc1
+    profile_id: "도핀_프로필ID_1"   # Dolphin 프로필 ID (프록시는 프로필에 설정)
+    blog_id: "네이버블로그ID_1"
+  - name: acc2
+    profile_id: "도핀_프로필ID_2"
+    blog_id: "네이버블로그ID_2"
+
+delay:            # 계정 간 / 글 간 랜덤 대기(초)
+  between_posts: [60, 180]
