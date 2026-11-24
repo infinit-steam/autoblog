@@ -30,6 +30,7 @@ TXT = {
     "select_pc": re.compile(r"(컴퓨터에서 선택|Select from computer|Select from device)", re.I),
     "next": re.compile(r"^(다음|Next)$", re.I),
     "ok": re.compile(r"^(확인|OK)$", re.I),
+    "fb_once": re.compile(r"^(이 게시물 공유하기|Share this post)$", re.I),  # (영구 설정인 '게시물 항상 공유하기' 와 구분)
     "upload_fail": re.compile(r"(파일을 업로드하지 못했습니다|Couldn.t upload|couldn.t be uploaded)", re.I),
     "share": re.compile(r"^(공유하기|공유|Share)$", re.I),
     "shared": re.compile(r"(게시물이 공유되었습니다|릴스가 공유되었습니다|Your post has been shared|Your reel has been shared|공유되었습니다)", re.I),
@@ -143,6 +144,54 @@ def _type_caption(page, caption: str):
     human_pause(1, 2)
 
 
+def _enable_facebook_share(page):
+    """공유 화면의 'Facebook' 스위치(이 게시물만 페이스북에도 공유)를 켠다.
+    '고급 설정'의 'Facebook에 자동으로 공유'(모든 게시물 자동 공유 설정)는 건드리지 않는다."""
+    label_js = """e => { let n = e; for (let k = 0; k < 6 && n; k++, n = n.parentElement) {
+        const t = (n.innerText || '').trim(); if (t && t.length < 160) return t; } return ''; }"""
+
+    def find_switch():
+        """공유 화면에서 'Facebook' 스위치 핸들을 찾는다. (자동 공유 설정 스위치는 제외)"""
+        dlg = page.locator("[role=dialog]").last
+        for h in dlg.locator("[role=switch], input[type=checkbox]").element_handles():
+            label = h.evaluate(label_js)
+            if "facebook" in label.lower() and "자동으로" not in label:
+                return h
+        return None
+
+    # 공유 화면은 비동기로 다시 그려지므로, 요소를 한 번 붙잡아 다루고 안 되면 잠시 뒤 다시 찾는다
+    for _ in range(8):
+        try:
+            h = find_switch()
+            if h is None:
+                time.sleep(1)
+                continue
+            if h.get_attribute("aria-checked") == "true":
+                return
+            h.click()
+            human_pause(0.8, 1.5)
+            # 확인 팝업 'Facebook에 공유하기': 반드시 '이 게시물 공유하기' 만 누른다.
+            # '게시물 항상 공유하기' 는 이후 모든 게시물을 자동 공유하는 영구 설정이므로 절대 누르지 않는다.
+            once = page.get_by_role("button", name=TXT["fb_once"])
+            if not (once.count() and once.first.is_visible()):
+                once = page.get_by_text(TXT["fb_once"])
+            try:
+                once.first.wait_for(state="visible", timeout=4000)
+                once.first.click()
+                human_pause(0.8, 1.5)
+            except Exception:
+                pass  # 팝업 없이 바로 켜지는 경우
+            h = find_switch()
+            if h is not None and h.get_attribute("aria-checked") == "true":
+                return
+            raise RuntimeError("Facebook 공유 스위치를 켜지 못했습니다")
+        except RuntimeError:
+            raise
+        except Exception:
+            time.sleep(1)  # 화면이 다시 그려지는 중 - 재시도
+    raise RuntimeError("공유 화면에 Facebook 스위치가 없습니다. 인스타 계정을 Meta 계정 센터에서 페이스북과 연결했는지 확인하세요")
+
+
 def post(page, account: dict, row: dict, body: str, base_dir, mode: str, dry_run: bool):
     if mode != "publish":
         raise ValueError("인스타는 임시저장을 지원하지 않습니다. config 의 post_mode 에 instagram: publish 를 지정하세요")
@@ -156,6 +205,8 @@ def post(page, account: dict, row: dict, body: str, base_dir, mode: str, dry_run
     _open_composer(page, files)
     _step_to_caption(page, is_reel)
     _type_caption(page, caption)
+    if account.get("crosspost_facebook"):
+        _enable_facebook_share(page)  # 같은 글을 연결된 페이스북에도 올린다 (config.yaml 계정의 crosspost_facebook: true)
 
     if dry_run:
         page.screenshot(path=f"logs/dryrun_ig_{int(time.time())}.png")

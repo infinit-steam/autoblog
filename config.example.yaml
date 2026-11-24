@@ -2,6 +2,7 @@
 post_mode:           # 플랫폼별 draft(임시저장 후 직접 발행) | publish(즉시 발행). 문자열 하나로 전체 지정도 가능
   naver: draft
   instagram: publish # 인스타 웹은 임시저장이 없어 publish 만 가능
+  threads: publish   # 스레드도 publish 만 지원 (공개 범위: 공개)
 
 pacing:                       # 자동화 패턴 조절 (처음엔 보수적으로)
   daily_limit: 1              # 계정당 하루 최대 게시 수
@@ -20,6 +21,13 @@ human:                        # 게시 전 사람 같은 브라우징 (클릭/�
   dwell_sec: [8, 25]
   after_post_dwell_sec: [0, 0]
 
+ai:                           # AI 글 생성 (GUI 의 'AI 작성' 탭). API 키는 공유 금지
+  api_key: ""              # 또는 환경변수 ANTHROPIC_API_KEY
+  model: claude-opus-5-5      # 비용을 줄이려면 claude-sonnet-5-5 등으로 변경
+  effort: medium              # low | medium | high (높을수록 오래 걸리고 비쌈)
+  max_images: 6               # AI 에게 보내는 사진 최대 장수
+  use_fallback: true          # 정책 거절 시 서버가 자동으로 다른 모델로 재시도
+
 browser: chrome   # chrome (무료, 기본) | dolphin (유료 플랜 automation 필요)
 
 chrome:              # chrome 방식 옵션 (선택). 프로필은 profiles/<계정이름>/ 에 저장
@@ -34,6 +42,7 @@ accounts:
   - name: acc1
     blog_id: "네이버블로그ID_1"
     profile_id: "도핀_프로필ID_1"   # dolphin 방식에서만 필요 (프록시는 프로필에 설정)
+    crosspost_facebook: false      # true: 인스타 게시 때 연결된 페이스북에도 같은 글을 올림 (공개 범위는 페이스북 쪽 설정)
   - name: acc2
     blog_id: "네이버블로그ID_2"
     profile_id: "도핀_프로필ID_2"

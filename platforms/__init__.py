@@ -7,7 +7,7 @@
 """
 import importlib
 
-_NAMES = ["naver", "instagram"]
+_NAMES = ["naver", "instagram", "threads"]
 
 
 def get(name: str):
