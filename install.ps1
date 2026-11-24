@@ -103,7 +103,7 @@ foreach ($d in "logs", "content", "profiles") { New-Item -ItemType Directory -Fo
 # 9) 동작 확인 (브라우저를 띄우지 않는 import 점검)
 Say "동작 점검"
 Push-Location $Dir
-& $py -c "import playwright, requests, yaml, main, platforms; print('import OK')"
+& $py -c "import playwright, requests, yaml, customtkinter, PIL, anthropic, main, platforms; print('import OK')"
 $code = $LASTEXITCODE
 Pop-Location
 if ($code -ne 0) { Fail "모듈 import 점검 실패" }
@@ -113,14 +113,16 @@ Write-Host @"
 
 다음 단계 (이 PC 에서 1회):
   1) 설정 수정:   notepad $cfg
-       - accounts: 계정 이름 / 네이버 blog_id
-       - (Dolphin 사용 시) browser: dolphin, dolphin.token, 계정별 profile_id
-  2) 로그인:      cd $Dir
-                  $py main.py --login-only acc1 --platform naver
-                  $py main.py --login-only acc1 --platform instagram
-                  (열린 Chrome 에서 로그인. '로그인 상태 유지' 체크)
-  3) 테스트:      $py main.py --dry-run
-  4) 글 준비:     content\README.md 참고 (tools\new_topic.py, tools\enqueue.py)
+       - accounts: name(예: acc1) / blog_id(이 PC 에서 쓸 네이버 블로그 ID)
+       - ai.api_key: AI 글 작성을 쓸 때 (환경변수 ANTHROPIC_API_KEY 로 대신해도 됨)
+  2) 로그인(플랫폼마다 1회, 이 PC 에서 쓸 계정으로. '로그인 상태 유지' 체크):
+       cd $Dir
+       $py main.py --login-only acc1 --platform naver
+       $py main.py --login-only acc1 --platform instagram
+       $py main.py --login-only acc1 --platform threads
+  3) 실행:        gui.bat 더블클릭 (먼저 dry-run 으로 확인)
+  4) 글 준비:     content\README.md 참고 (GUI 에서 주제를 만들고 글/사진 작성)
 
 업데이트: install.bat 을 다시 실행하면 최신 코드로 갱신됩니다 (config.yaml / content / profiles 는 유지).
+참고: 방금 설치한 Python 이 인식되지 않으면 PC 를 다시 로그인(또는 재부팅)한 뒤 gui.bat 을 실행하세요.
 "@

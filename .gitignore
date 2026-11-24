@@ -7,7 +7,7 @@ content/**/*.mov
 __pycache__/
 *.pyc
 
-# 실제 콘텐츠는 PC마다 따로 보관 (git 에 올리지 않음). README 와 test 예시만 추적
+# PC마다 다른 작업 데이터는 git 에 올리지 않는다 (대기열, 실제 콘텐츠). content/README.md 만 추적
+queue.csv
 content/*
 !content/README.md
-!content/test/
