@@ -115,11 +115,10 @@ Write-Host @"
   1) 설정 수정:   notepad $cfg
        - accounts: name(예: acc1) / blog_id(이 PC 에서 쓸 네이버 블로그 ID)
        - ai.api_key: AI 글 작성을 쓸 때 (환경변수 ANTHROPIC_API_KEY 로 대신해도 됨)
-  2) 로그인(플랫폼마다 1회, 이 PC 에서 쓸 계정으로. '로그인 상태 유지' 체크):
-       cd $Dir
-       $py main.py --login-only acc1 --platform naver
-       $py main.py --login-only acc1 --platform instagram
-       $py main.py --login-only acc1 --platform threads
+  2) 로그인(플랫폼마다 1회, 이 PC 에서 쓸 계정으로):
+       login.bat 더블클릭  (계정 이름을 묻고 네이버·인스타·스레드 로그인 창을 차례로 열어 줍니다)
+       또는 gui.bat 실행 후 왼쪽 아래 '로그인' 버튼
+       ('로그인 상태 유지' 체크, 보안 확인이 나오면 끝까지 완료)
   3) 실행:        gui.bat 더블클릭 (먼저 dry-run 으로 확인)
   4) 글 준비:     content\README.md 참고 (GUI 에서 주제를 만들고 글/사진 작성)
 

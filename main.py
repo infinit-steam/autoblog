@@ -26,19 +26,43 @@ def main():
     ap.add_argument("--dry-run", action="store_true", help="발행 직전까지만")
     ap.add_argument("--force", action="store_true", help="활동시간·일일한도·휴무일·시작지연 무시")
     ap.add_argument("--login-only", metavar="ACCOUNT", help="프로필만 열어 수동 로그인")
+    ap.add_argument("--check-login", metavar="ACCOUNT", help="로그인 여부만 확인 (--platform 과 함께). 로그인됨=종료코드 0")
     ap.add_argument("--platform", default="naver", help="--login-only 와 함께 쓸 플랫폼 (naver|instagram|threads)")
     ap.add_argument("--only", metavar="PLATFORM", help="해당 플랫폼의 글만 처리")
     args = ap.parse_args()
 
-    cfg = yaml.safe_load((ROOT / "config.yaml").read_text(encoding="utf-8"))
-    accts = {a["name"]: a for a in cfg["accounts"]}
+    cfg_path = ROOT / "config.yaml"
+    if not cfg_path.exists():
+        raise SystemExit("config.yaml 이 없습니다. config.example.yaml 을 복사해 config.yaml 로 만들고 계정을 입력하세요.")
+    cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+    accts = {a["name"]: a for a in (cfg.get("accounts") or [])}
+    if not accts:
+        raise SystemExit("config.yaml 에 accounts 가 비어 있습니다. 계정(name, blog_id)을 입력하세요.")
+
+    def need_account(name):
+        if name not in accts:
+            raise SystemExit(f"config.yaml 에 없는 계정입니다: {name}  (등록된 계정: {', '.join(accts)})")
+        return accts[name]
+
+    if args.check_login:
+        a, plat = need_account(args.check_login), platforms.get(args.platform)
+        with open_browser(cfg, a) as page:
+            ok = plat.is_logged_in(page)
+        print(f"{plat.NAME}: {'LOGGED_IN' if ok else 'NOT_LOGGED_IN'}", flush=True)
+        raise SystemExit(0 if ok else 3)
 
     if args.login_only:
-        a = accts[args.login_only]
+        a = need_account(args.login_only)
         plat = platforms.get(args.platform)
         with open_browser(cfg, a) as page:
             page.goto(plat.LOGIN_URL)
-            input("브라우저에서 직접 로그인 후 Enter... ")
+            print(f"\n[{plat.NAME}] 열린 브라우저에서 계정 '{a['name']}' 로 로그인하세요.", flush=True)
+            print("('로그인 상태 유지' 체크, 보안 확인이 나오면 끝까지 완료)", flush=True)
+            try:
+                input("로그인이 끝났으면 이 창에서 Enter 를 누르세요... ")
+            except EOFError:
+                pass  # GUI 등 입력이 닫힌 환경에서는 바로 마무리
+        print("완료. 브라우저를 닫았습니다.", flush=True)
         return
 
     pace = Pacing(cfg.get("pacing"), ROOT / "state.json")

@@ -866,6 +866,8 @@ class App(ctk.CTk):
         ctk.CTkButton(side, text="＋ 새 주제", font=FONT, command=self.new_topic).pack(fill="x", padx=12)
         self.topic_list = ctk.CTkScrollableFrame(side, fg_color="transparent")
         self.topic_list.pack(fill="both", expand=True, padx=4, pady=8)
+        ctk.CTkButton(side, text="🔑 로그인 (네이버·인스타·스레드)", font=FONT, fg_color="#555", hover_color="#333",
+                      command=self.login_dialog).pack(fill="x", padx=12, pady=(0, 12), side="bottom")
 
         main = ctk.CTkFrame(self, fg_color="transparent")
         main.grid(row=0, column=1, sticky="nsew", padx=14, pady=12)
@@ -891,6 +893,118 @@ class App(ctk.CTk):
         names = topics.list_topics()
         if names:  # 시작하자마자 첫 주제를 선택해 둔다 (아무것도 선택 안 된 상태로 버튼을 누르는 실수 방지)
             self.after(100, lambda: self.select_topic(names[0]))
+
+    # ---- 로그인 (터미널 없이) ----
+    def login_dialog(self):
+        """계정·플랫폼을 고르고 브라우저를 열어 로그인한다. [로그인 완료] 를 누르면 실제로 로그인됐는지 확인한다."""
+        accounts = load_accounts()
+        if not accounts:
+            showerror("계정 없음", "config.yaml 에 accounts 가 없습니다.\n먼저 config.yaml 에 계정(name, blog_id)을 입력하세요.")
+            return
+        plats = {"네이버": "naver", "인스타그램": "instagram", "스레드": "threads"}
+        names = {v: k for k, v in plats.items()}
+        dlg = ctk.CTkToplevel(self)
+        dlg.title("로그인")
+        dlg.geometry("500x470")
+        dlg.transient(self)
+        dlg.after(100, dlg.grab_set)
+        ctk.CTkLabel(dlg, font=FONT, justify="left", wraplength=450, text=(
+            "이 PC의 계정별 브라우저에 로그인합니다. 한 번만 하면 유지됩니다.\n\n"
+            "1. 계정과 플랫폼을 고르고 [브라우저 열기]\n"
+            "2. 열린 브라우저에서 로그인 ('로그인 상태 유지' 체크,\n"
+            "    보안 확인이 나오면 끝까지 완료. 스레드는 '인스타 계정으로 계속')\n"
+            "3. 로그인된 화면이 보이면 이 창의 [로그인 완료]를 누르세요")).pack(anchor="w", padx=22, pady=(18, 10))
+        row = ctk.CTkFrame(dlg, fg_color="transparent")
+        row.pack(fill="x", padx=22)
+        acc = ctk.CTkOptionMenu(row, values=accounts, width=150, font=FONT)
+        acc.pack(side="left")
+        plat = ctk.CTkOptionMenu(row, values=list(plats), width=150, font=FONT)
+        plat.pack(side="left", padx=10)
+        status = ctk.CTkLabel(dlg, text="", font=FONT, wraplength=450, justify="left")
+        status.pack(anchor="w", padx=22, pady=14)
+        open_btn = ctk.CTkButton(dlg, text="1. 브라우저 열기", font=FONT, height=38)
+        open_btn.pack(fill="x", padx=22, pady=4)
+        done_btn = ctk.CTkButton(dlg, text="2. 로그인 완료", font=FONT, height=38, state="disabled",
+                                 fg_color="#2e8b57", hover_color="#236b43")
+        done_btn.pack(fill="x", padx=22, pady=4)
+        summary = ctk.CTkLabel(dlg, text="", font=FONT, justify="left", wraplength=450, text_color="#555")
+        summary.pack(anchor="w", padx=22, pady=10)
+
+        st = {"proc": None, "results": {}}
+        q = queue.Queue()
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUNBUFFERED": "1"}
+
+        def show_summary():
+            summary.configure(text="\n".join(f"{'✅' if ok else '❌'} {names[p]}  ({a})" for (a, p), ok in st["results"].items()))
+
+        def do_open():
+            if st["proc"]:
+                return
+            a, p = acc.get(), plats[plat.get()]
+            st["cur"] = (a, p)
+            st["proc"] = subprocess.Popen([sys.executable, "-u", "main.py", "--login-only", a, "--platform", p], cwd=ROOT,
+                                          stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                          env=env, creationflags=flags)
+            threading.Thread(target=lambda pr=st["proc"]: [None for _ in pr.stdout], daemon=True).start()  # 출력 버퍼 비우기
+            open_btn.configure(state="disabled")
+            done_btn.configure(state="normal")
+            status.configure(text=f"브라우저가 열립니다 (잠시 걸릴 수 있음). {plat.get()}에 '{a}' 계정으로 로그인한 뒤 [로그인 완료]를 누르세요.",
+                             text_color="#555")
+
+        def finish():  # 작업 스레드: 로그인 창 종료 → 실제 로그인 여부 확인
+            a, p = st["cur"]
+            pr = st["proc"]
+            try:
+                pr.stdin.write(b"\n")
+                pr.stdin.flush()
+                pr.stdin.close()
+            except OSError:
+                pass
+            try:
+                pr.wait(timeout=30)
+            except subprocess.TimeoutExpired:
+                pr.kill()
+            try:
+                r = subprocess.run([sys.executable, "-u", "main.py", "--check-login", a, "--platform", p], cwd=ROOT,
+                                   capture_output=True, env=env, creationflags=flags, timeout=180)
+                ok = r.returncode == 0 and b"LOGGED_IN" in r.stdout and b"NOT_LOGGED_IN" not in r.stdout
+            except Exception:
+                ok = False
+            q.put(((a, p), ok))
+
+        def do_done():
+            done_btn.configure(state="disabled")
+            status.configure(text="로그인을 확인하는 중입니다 (브라우저가 잠깐 열렸다 닫힙니다)…", text_color="#555")
+            threading.Thread(target=finish, daemon=True).start()
+            dlg.after(300, poll)
+
+        def poll():
+            try:
+                key, ok = q.get_nowait()
+            except queue.Empty:
+                dlg.after(300, poll)
+                return
+            st["proc"] = None
+            st["results"][key] = ok
+            open_btn.configure(state="normal")
+            a, p = key
+            status.configure(text=(f"✅ {names[p]} 로그인이 확인되었습니다." if ok else
+                                   f"❌ {names[p]} 로그인이 감지되지 않았습니다. [브라우저 열기]부터 다시 해 보세요."),
+                             text_color="#2e8b57" if ok else "#c0392b")
+            show_summary()
+
+        def on_close():
+            pr = st["proc"]
+            if pr and pr.poll() is None:
+                if not yesno("로그인", "로그인 창이 열려 있습니다. 닫으면 취소됩니다.\n닫을까요?", parent=dlg):
+                    return
+                pr.kill()
+            dlg.destroy()
+
+        open_btn.configure(command=do_open)
+        done_btn.configure(command=do_done)
+        dlg.protocol("WM_DELETE_WINDOW", on_close)
 
     def _autosave_tick(self):
         """30초마다 변경된 글을 자동 저장한다 (저장 버튼을 잊어도 글이 사라지지 않게)."""
