@@ -13,7 +13,7 @@ from pathlib import Path
 import yaml
 
 import topics
-from common import IMAGE_EXT, VIDEO_EXT
+from common import IMAGE_EXT, VIDEO_EXT, normalize_image_markers
 
 ROOT = Path(__file__).resolve().parent
 TONES_PATH = ROOT / "tone_presets.json"
@@ -46,7 +46,7 @@ SYSTEM = """당신은 한국어 블로그(네이버)와 인스타그램 콘텐�
 - 사진 속 사람의 신원을 추측하지 않습니다. 사진에 보이는 내용만 묘사합니다.
 - 글은 직접 쓴 것처럼 자연스럽게, 같은 문장 구조를 반복하지 않습니다. 상투적인 AI 문투(예: "~에 대해 알아보겠습니다", "결론적으로")는 피합니다.
 - title 은 네이버 글 제목입니다 (40자 안팎, 클릭을 유도하되 과장 금지).
-- naver_body: 본문만 씁니다 (제목 제외). 문단은 빈 줄로 구분하고 마크다운 문법은 쓰지 않습니다. 첨부 사진이 있으면 내용에 맞는 위치에 한 줄로 [[image:../media/파일명]] 을 넣습니다. 파일명은 아래 '사용 가능한 파일'에 있는 것만, 한 번씩만 씁니다.
+- naver_body: 본문만 씁니다 (제목 제외). 문단은 빈 줄로 구분하고 마크다운 문법은 쓰지 않습니다. 첨부 사진이 있으면 내용에 맞는 문단과 문단 사이에 [[image:../media/파일명]] 만 있는 별도의 줄을 넣습니다. 문장 중간이나 문장 앞뒤에 붙여 쓰면 안 됩니다. 파일명은 아래 '사용 가능한 파일'에 있는 것만, 한 번씩만 씁니다.
 - instagram_caption: 첫 줄에 시선을 끄는 문장, 이어서 본문, 마지막에 관련 해시태그(최대 10개). 이미지 마커는 넣지 않습니다.
 - threads_post: 스레드에 올릴 글입니다. 반드시 500자 이하(해시태그 포함). 인스타 캡션을 줄인 것이 아니라 스레드에 맞는 대화체 글로 새로 씁니다. 첫 문장으로 시선을 끌고 짧은 문단으로 나눕니다. 해시태그는 많아야 1개(없어도 됨)이고 이모지는 최소화합니다. 이미지 마커는 넣지 않습니다.
 - 요청되지 않은 플랫폼의 필드는 빈 문자열로 둡니다.
@@ -213,6 +213,7 @@ def normalize_result(result: dict, platforms, image_names: list[str],
                 return f"[[image:../media/{name}]]"
             warns.append(f"본문에 없는 이미지 마커를 제거했습니다: {m.group(1).strip()}")
             return ""
+        r["naver_body"] = normalize_image_markers(r["naver_body"])  # 문장 중간의 마커는 문단 아래 한 줄로
         r["naver_body"] = re.sub(r"\n{3,}", "\n\n", MARKER_RE.sub(fix, r["naver_body"])).strip()
         if not r["title"]:
             problems.append("title 이 비어 있습니다")

@@ -1,5 +1,6 @@
 """플랫폼 공통: 입력 속도/대기 배율, 대기 함수, 미디어 경로 해석."""
 import random
+import re
 import time
 from pathlib import Path
 
@@ -10,6 +11,34 @@ PACE = {"type_delay": (40, 110), "body_delay": (30, 90), "pause_scale": 1.0}
 
 IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp"}
 VIDEO_EXT = {".mp4", ".mov"}
+
+
+_MARKER = re.compile(r"\[\[image:[^\[\]]+\]\]")
+
+
+def normalize_image_markers(body: str) -> str:
+    """문장 중간에 들어간 [[image:...]] 를 한 줄짜리 마커로 옮긴다.
+
+    문장이 끊기지 않도록 마커를 빼낸 문단은 그대로 두고, 사진은 그 문단 아래에 둔다
+    (문단이 마커로 시작하면 문단 위에 둔다). 이미 한 줄에 혼자 있는 마커는 그대로. 여러 번 적용해도 결과가 같다.
+    """
+    out = []
+    for line in body.splitlines():
+        marks = _MARKER.findall(line)
+        if not marks or line.strip() == marks[0]:
+            out.append(line)
+            continue
+        before, rest = [], line.strip()
+        while True:
+            m = _MARKER.match(rest)
+            if not m:
+                break
+            before.append(m.group(0))
+            rest = rest[m.end():].lstrip()
+        after = _MARKER.findall(rest)
+        text = re.sub(r"[ \t]{2,}", " ", _MARKER.sub("", rest)).strip()
+        out += before + ([text] if text else []) + after
+    return "\n".join(out)
 
 
 def human_pause(a=0.4, b=1.2):

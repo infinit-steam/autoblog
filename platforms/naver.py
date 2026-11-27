@@ -5,7 +5,7 @@ import re
 import time
 from pathlib import Path
 
-from common import ROOT, PACE, human_pause
+from common import ROOT, PACE, human_pause, normalize_image_markers
 
 NAME = "naver"
 LOGIN_URL = "https://nid.naver.com/nidlogin.login"
@@ -75,7 +75,7 @@ UPLOAD_TIMEOUT_MS = 180000  # 사진 한 장 업로드 대기 (느린 PC/네트�
 def check_images(body: str, base_dir):
     """본문의 [[image:...]] 파일이 모두 있는지 브라우저를 열기 전에 확인한다 (글을 절반 치다가 멈추는 것을 방지)."""
     missing = []
-    for line in body.splitlines():
+    for line in normalize_image_markers(body).splitlines():
         m = IMAGE_RE.match(line)
         if m:
             for path in m.group(1).split("|"):
@@ -93,6 +93,8 @@ def verify_typed(f, body: str):
     """입력이 끝난 뒤 화면의 본문이 기대한 글과 맞는지 확인한다. 일부만 들어갔으면 예외."""
     exp = re.sub(r"\s+", "", "".join(l for l in body.splitlines() if not IMAGE_RE.match(l)))
     got = re.sub(r"[\s​]+", "", "".join(f.locator(SEL["body"]).all_inner_texts()))
+    if "[[image:" in got:
+        raise RuntimeError("사진 마커가 사진으로 바뀌지 않고 글자로 입력되었습니다. 본문의 [[image:...]] 형식을 확인하세요")
     n_img = sum(len(IMAGE_RE.match(l).group(1).split("|")) for l in body.splitlines() if IMAGE_RE.match(l))
     have_img = f.locator(SEL["image_comp"]).count()
     print(f"[입력] 확인: 본문 {len(got)}/{len(exp)}자, 사진 {have_img}/{n_img}장", flush=True)
@@ -144,6 +146,7 @@ def write_post(page, blog_id: str, title: str, body: str, dry_run: bool = False,
     human_pause()
 
     # 본문 (줄 단위 입력). `[[image:경로]]` 한 줄은 그 위치에 사진 업로드.
+    body = normalize_image_markers(body)  # 문장 중간의 마커는 문단 아래 한 줄로 옮긴다
     f.locator(SEL["body"]).first.click()
     lines = body.splitlines()
     n_chars = sum(len(l) for l in lines if not IMAGE_RE.match(l))
