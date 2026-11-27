@@ -1,6 +1,6 @@
 import argparse, csv, random, time, yaml
 from pathlib import Path
-from browser import open_browser
+from browser import open_browser, profile_dir
 import common
 import platforms
 from pacing import Pacing
@@ -46,9 +46,19 @@ def main():
 
     if args.check_login:
         a, plat = need_account(args.check_login), platforms.get(args.platform)
+        info = ""
         with open_browser(cfg, a) as page:
             ok = plat.is_logged_in(page)
+            if ok and hasattr(plat, "describe_login"):
+                try:
+                    info = plat.describe_login(page, a)
+                except Exception as e:
+                    info = f"(추가 정보 확인 실패: {type(e).__name__})"
         print(f"{plat.NAME}: {'LOGGED_IN' if ok else 'NOT_LOGGED_IN'}", flush=True)
+        if info:
+            print(info, flush=True)
+        if (cfg.get("browser") or "chrome") == "chrome":
+            print(f"(계정 '{a['name']}', 프로필 폴더: {profile_dir(cfg, a)})", flush=True)
         raise SystemExit(0 if ok else 3)
 
     if args.login_only:
@@ -57,6 +67,8 @@ def main():
         with open_browser(cfg, a) as page:
             page.goto(plat.LOGIN_URL)
             print(f"\n[{plat.NAME}] 열린 브라우저에서 계정 '{a['name']}' 로 로그인하세요.", flush=True)
+            if (cfg.get("browser") or "chrome") == "chrome":
+                print(f"(로그인 정보는 이 폴더에 저장됩니다: {profile_dir(cfg, a)})", flush=True)
             print("('로그인 상태 유지' 체크, 보안 확인이 나오면 끝까지 완료)", flush=True)
             try:
                 input("로그인이 끝났으면 이 창에서 Enter 를 누르세요... ")
@@ -130,10 +142,17 @@ def main():
             for m in filter(None, (row.get("media") or "").split("|")):  # 미디어 파일이 지워졌는지 미리 확인
                 if not (ROOT / m).exists():
                     raise FileNotFoundError(f"미디어 파일이 없습니다: {m}")
+            pre = getattr(plat, "precheck", None)
+            if pre:
+                pre(a, row, body, body_path.parent)  # 플랫폼별 사전 검사 (예: 네이버 본문의 사진 파일)
             browsed = True
             with open_browser(cfg, a) as page:
                 if not plat.is_logged_in(page):
-                    raise RuntimeError(f"{plat.NAME} 로그아웃 상태 - --login-only {a['name']} --platform {plat.NAME} 로 먼저 로그인")
+                    where = f", 프로필 폴더: {profile_dir(cfg, a)}" if (cfg.get("browser") or "chrome") == "chrome" else ""
+                    raise RuntimeError(
+                        f"{plat.NAME} 로그아웃 상태입니다 (계정 '{a['name']}'{where}). "
+                        f"login.bat 에서 계정 이름을 '{a['name']}' 로 입력해 {plat.NAME} 에 로그인하세요. "
+                        f"로그인 후 'is logged in' 이 확인되어야 합니다. 이 프로그램을 실행한 폴더와 login.bat 을 실행한 폴더가 같은지도 확인하세요")
                 human.browse(page, hcfg)  # 게시 전 스크롤/둘러보기
                 try:
                     plat.post(page, a, row, body, body_path.parent, mode, args.dry_run)

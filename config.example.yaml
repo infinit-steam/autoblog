@@ -40,11 +40,11 @@ dolphin:             # browser: dolphin 일 때만 사용
 
 accounts:
   - name: acc1
-    blog_id: "네이버블로그ID_1"
+    blog_id: ""                    # 비워 두면 로그인한 계정의 블로그를 자동 사용 (적으면 로그인 계정과 다를 때 중단)
     profile_id: "도핀_프로필ID_1"   # dolphin 방식에서만 필요 (프록시는 프로필에 설정)
     crosspost_facebook: false      # true: 인스타 게시 때 연결된 페이스북에도 같은 글을 올림 (공개 범위는 페이스북 쪽 설정)
   - name: acc2
-    blog_id: "네이버블로그ID_2"
+    blog_id: ""
     profile_id: "도핀_프로필ID_2"
 
 delay:            # 계정 간 / 글 간 랜덤 대기(초)

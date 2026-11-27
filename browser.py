@@ -4,11 +4,36 @@ config.yaml 의 `browser:` 값으로 전환한다.
   browser: chrome    # 일반 Chrome + 계정별 전용 프로필 폴더 (무료)
   browser: dolphin   # Dolphin{Anty} (유료 플랜의 automation 필요)
 """
+import time
 from contextlib import contextmanager
 from pathlib import Path
 
 ROOT = Path(__file__).parent
 _dolphin = None
+
+# 로그인 쿠키를 유지할 사이트. 세션 쿠키(만료일 없음)는 브라우저를 닫으면 사라지므로,
+# 닫기 직전에 만료일을 붙여 Chrome 자신의 쿠키 저장소에 남긴다 ('로그인 상태 유지' 를 놓쳐도 로그인이 유지됨).
+PERSIST_DOMAINS = ("naver.com", "instagram.com", "threads.com", "threads.net", "facebook.com")
+PERSIST_DAYS = 90
+
+
+def profile_dir(cfg: dict, account: dict) -> Path:
+    chrome_cfg = cfg.get("chrome") or {}
+    return Path(chrome_cfg.get("profiles_dir", ROOT / "profiles")) / account["name"]
+
+
+def _persist_session_cookies(ctx):
+    exp = time.time() + PERSIST_DAYS * 86400
+    fix = []
+    for c in ctx.cookies():
+        if (c.get("expires") or -1) > 0:
+            continue  # 이미 만료일이 있는 쿠키는 그대로 둔다
+        if not any(d in c.get("domain", "") for d in PERSIST_DOMAINS):
+            continue
+        fix.append({k: c[k] for k in ("name", "value", "domain", "path", "httpOnly", "secure", "sameSite") if k in c}
+                   | {"expires": exp})
+    if fix:
+        ctx.add_cookies(fix)
 
 
 @contextmanager
@@ -17,7 +42,7 @@ def _open_chrome(cfg: dict, account: dict):
     from playwright.sync_api import sync_playwright
 
     chrome_cfg = cfg.get("chrome") or {}
-    user_dir = Path(chrome_cfg.get("profiles_dir", ROOT / "profiles")) / account["name"]
+    user_dir = profile_dir(cfg, account)
     user_dir.mkdir(parents=True, exist_ok=True)
     kwargs = dict(
         user_data_dir=str(user_dir),
@@ -37,6 +62,10 @@ def _open_chrome(cfg: dict, account: dict):
             page = ctx.pages[0] if ctx.pages else ctx.new_page()
             yield page
         finally:
+            try:
+                _persist_session_cookies(ctx)
+            except Exception:
+                pass  # 쿠키 보존 실패가 작업을 막지 않게 한다
             try:
                 ctx.close()
             except Exception:

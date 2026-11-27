@@ -113,7 +113,7 @@ Write-Host @"
 
 다음 단계 (이 PC 에서 1회):
   1) 설정 수정:   notepad $cfg
-       - accounts: name(예: acc1) / blog_id(이 PC 에서 쓸 네이버 블로그 ID)
+       - accounts: name(예: acc1) / blog_id(비워 두면 로그인한 계정의 블로그를 자동 사용)
        - ai.api_key: AI 글 작성을 쓸 때 (환경변수 ANTHROPIC_API_KEY 로 대신해도 됨)
   2) 로그인(플랫폼마다 1회, 이 PC 에서 쓸 계정으로):
        login.bat 더블클릭  (계정 이름을 묻고 네이버·인스타·스레드 로그인 창을 차례로 열어 줍니다)

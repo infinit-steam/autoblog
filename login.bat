@@ -56,6 +56,7 @@ exit /b 0
 :login
 echo.
 echo ----- %1 -----
+echo (Running in: %CD%)
 "%PY%" main.py --login-only %ACC% --platform %1
 if errorlevel 1 echo [!] %1 login ended with an error. Read the message above.
 echo.

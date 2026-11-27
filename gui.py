@@ -853,7 +853,7 @@ class RunTab(ctk.CTkFrame):
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("autoblog")
+        self.title(f"autoblog  -  {ROOT}")  # 설치 폴더가 보이게 한다 (ZIP 푼 폴더 등 엉뚱한 폴더에서 실행했는지 구분)
         self.geometry("1180x760")
         self.minsize(980, 620)
         self.grid_columnconfigure(1, weight=1)
@@ -969,9 +969,10 @@ class App(ctk.CTk):
                 r = subprocess.run([sys.executable, "-u", "main.py", "--check-login", a, "--platform", p], cwd=ROOT,
                                    capture_output=True, env=env, creationflags=flags, timeout=180)
                 ok = r.returncode == 0 and b"LOGGED_IN" in r.stdout and b"NOT_LOGGED_IN" not in r.stdout
+                info = "\n".join(l for l in r.stdout.decode("utf-8", errors="replace").splitlines() if l.startswith("[블로그]"))
             except Exception:
-                ok = False
-            q.put(((a, p), ok))
+                ok, info = False, ""
+            q.put(((a, p), ok, info))
 
         def do_done():
             done_btn.configure(state="disabled")
@@ -981,7 +982,7 @@ class App(ctk.CTk):
 
         def poll():
             try:
-                key, ok = q.get_nowait()
+                key, ok, info = q.get_nowait()
             except queue.Empty:
                 dlg.after(300, poll)
                 return
@@ -989,9 +990,9 @@ class App(ctk.CTk):
             st["results"][key] = ok
             open_btn.configure(state="normal")
             a, p = key
-            status.configure(text=(f"✅ {names[p]} 로그인이 확인되었습니다." if ok else
+            status.configure(text=((f"✅ {names[p]} 로그인이 확인되었습니다." + (f"\n{info}" if info else "")) if ok else
                                    f"❌ {names[p]} 로그인이 감지되지 않았습니다. [브라우저 열기]부터 다시 해 보세요."),
-                             text_color="#2e8b57" if ok else "#c0392b")
+                             text_color=("#b9770e" if "주의" in info else "#2e8b57") if ok else "#c0392b")
             show_summary()
 
         def on_close():
